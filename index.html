@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>AI 可视化翻译器 - joryum</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"/>
+  <style>
+    .word-card { transition: transform 0.2s; }
+    .word-card:hover { transform: translateY(-2px); }
+    .pron-btn { background: #dbeafe; border-radius: 50%; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen py-8 px-4">
+  <div class="max-w-4xl mx-auto">
+    <h1 class="text-3xl font-bold text-center text-blue-600 mb-6">🌐 AI 可视化翻译器</h1>
+    
+    <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+      <textarea id="inputText" placeholder="请输入中文..." class="w-full h-32 p-4 border border-gray-300 rounded-lg mb-4"></textarea>
+      <button onclick="translateNow()" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg">翻译</button>
+    </div>
+
+    <div id="translationResult" class="hidden">
+      <h2 class="text-xl font-semibold mb-4 text-gray-800">📝 翻译结果</h2>
+      <p id="translatedText" class="text-lg bg-blue-50 p-4 rounded-lg mb-6 font-medium"></p>
+    </div>
+
+    <div id="vocabSection" class="hidden">
+      <h2 class="text-xl font-semibold mb-4 text-gray-800">🔍 重点词汇解析</h2>
+      <div id="vocabCards" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+  </div>
+
+  <script src="cet46.js"></script>
+  <script>
+    async function translateChineseToEnglish(text) {
+      const res = await fetch('https://libretranslate.de/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ q: text, source: 'zh', target: 'en' })
+      });
+      const data = await res.json();
+      return data.translatedText || '';
+    }
+
+    async function translateNow() {
+      const input = document.getElementById('inputText').value.trim();
+      if (!input) return;
+      try {
+        const translated = await translateChineseToEnglish(input);
+        document.getElementById('translatedText').textContent = translated;
+        document.getElementById('translationResult').classList.remove('hidden');
+        analyzeVocabulary(translated);
+      } catch (e) {
+        alert('翻译失败，请检查网络或稍后再试');
+      }
+    }
+
+    function speak(text) {
+      if ('speechSynthesis' in window) {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US'; u.rate = 1.0;
+        speechSynthesis.speak(u);
+      } else {
+        alert('请使用 Chrome、Edge 或 Firefox 浏览器');
+      }
+    }
+
+    function analyzeVocabulary(txt) {
+      const words = txt.toLowerCase().match(/\b\w+\b/g) || [];
+      const found = [];
+      for (const w of [...new Set(words)]) {
+        if (CET46_VOCAB[w] && found.length < 3) found.push({ word: w, ...CET46_VOCAB[w] });
+      }
+      renderCards(found);
+    }
+
+    function renderCards(list) {
+      const container = document.getElementById('vocabCards');
+      container.innerHTML = '';
+      if (list.length === 0) {
+        document.getElementById('vocabSection').classList.add('hidden');
+        return;
+      }
+      list.forEach(item => {
+        const div = document.createElement('div');
+        div.className = 'word-card bg-white p-4 rounded-lg border';
+        div.innerHTML = `
+          <h3 class="font-bold text-lg text-blue-600">📌 ${item.word}</h3>
+          <p><strong>音标：</strong>🔊 /${item.phonetic}/ 
+            <span class="pron-btn" onclick="speak('${item.word}')"><i class="fas fa-volume-up"></i></span>
+          </p>
+          <p class="mt-1"><strong>词义：</strong>${item.meaning}</p>
+          <p class="mt-1"><strong>例句：</strong>🎧 "${item.example}"
+            <span class="pron-btn ml-1" onclick="speak('${item.example}')"><i class="fas fa-play"></i></span>
+          </p>
+          <p class="mt-2 text-sm text-gray-600">🕯️ ${item.background}</p>
+        `;
+        container.appendChild(div);
+      });
+      document.getElementById('vocabSection').classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
